@@ -105,7 +105,7 @@ def runProverOnConst
   For the `i`-th theorem `name` in `names`, its entry in the result file has the following form:
   `<i> <result> <time> <heartbeats> <name>`
 -/
-def runAutoOnConsts (config : EvalAutoConfig) (names : Array Name) (usedThmNamesArr : Array (Array Name)) : CoreM Unit := do
+def runAutoOnConsts (config : EvalAutoConfig) (names : Array Name) (usedThmNamesArr : Array (Array Name)) (withPrint := false) : CoreM Unit := do
   let logFileHandle? : Option IO.FS.Handle ← config.logFile.mapM (fun fname => IO.FS.Handle.mk fname .write)
   let resultFileHandle? : Option IO.FS.Handle ← config.resultFile.mapM (fun fname => IO.FS.Handle.mk fname .write)
   let nonterms := Std.HashSet.ofArray config.nonterminates
@@ -116,6 +116,7 @@ def runAutoOnConsts (config : EvalAutoConfig) (names : Array Name) (usedThmNames
   let globalStartTime ← IO.monoMsNow
   let mut results : Array (Result × Nat × Nat) := #[]
   for (name, usedThmNames) in names.zip usedThmNamesArr do
+    if withPrint then IO.println s!"Testing {name}"
     let ci ← Name.getCi name decl_name%
     trace[auto.eval.printProblem] m!"Testing || {name} : {ci.type}"
     if let .some fhandle := logFileHandle? then
