@@ -52,13 +52,11 @@ instance : ToString EvalAutoConfig where
   Premises which only contain logic constants are filtered because they
     are assumed to be known by the prover
 -/
-private def runProverOnAutoLemma
-  (lem : Auto.Lemma) (prover : Array Lemma → Array Lemma → MetaM Expr) : CoreM Result := do
+private def runProverOnAutoLemma (lem : Auto.Lemma) (usedThmNames : Array Name)
+  (prover : Array Lemma → Array Lemma → MetaM Expr) : CoreM Result := do
   if !(← Meta.MetaM.run' <| Meta.isProp lem.type) then
     return .nonProp
   -- **TODO: Aux theorem like those ending in `.proof_1`**
-  let usedThmNames ← (← Expr.getUsedTheorems lem.proof).filterM (fun name =>
-    return !(← Name.onlyLogicInType name))
   let usedThms ← usedThmNames.mapM (fun n => Lemma.ofConst n (.leaf "collected by hammertest"))
   let proverFn : MetaM Expr := Meta.forallTelescope lem.type fun bs body => do
     let negGoal := Expr.app (.const ``Not []) body
@@ -93,13 +91,13 @@ private def runProverOnAutoLemma
     are assumed to be known by the prover
 -/
 def runProverOnConst
-  (name : Name) (prover : Array Lemma → Array Lemma → MetaM Expr) : CoreM Result := do
+  (name : Name) (usedThmNames : Array Name) (prover : Array Lemma → Array Lemma → MetaM Expr) : CoreM Result := do
   let ci ← Name.getCi name decl_name%
   let .some v := ci.value?
     | throwError "{decl_name%} :: {name} has no value"
   let lemmaPre ← Auto.Lemma.ofConst name (.leaf "ofConst")
   let lemmaV := {lemmaPre with proof := v}
-  runProverOnAutoLemma lemmaV prover
+  runProverOnAutoLemma lemmaV usedThmNames prover
 
 /--
   Run `lean-auto` on all the constants listed in `names`
@@ -107,7 +105,7 @@ def runProverOnConst
   For the `i`-th theorem `name` in `names`, its entry in the result file has the following form:
   `<i> <result> <time> <heartbeats> <name>`
 -/
-def runAutoOnConsts (config : EvalAutoConfig) (names : Array Name) : CoreM Unit := do
+def runAutoOnConsts (config : EvalAutoConfig) (names : Array Name) (usedThmNames : Array Name) : CoreM Unit := do
   let logFileHandle? : Option IO.FS.Handle ← config.logFile.mapM (fun fname => IO.FS.Handle.mk fname .write)
   let resultFileHandle? : Option IO.FS.Handle ← config.resultFile.mapM (fun fname => IO.FS.Handle.mk fname .write)
   let nonterms := Std.HashSet.ofArray config.nonterminates
@@ -135,9 +133,9 @@ def runAutoOnConsts (config : EvalAutoConfig) (names : Array Name) : CoreM Unit 
           withTheReader Core.Context (fun ctx => {ctx with maxHeartbeats := config.maxHeartbeats * 1000}) <|
             withAutoSolverConfigOptions config.solverConfig config.timeout (
               match config.solverConfig with
-              | .rawNative => runProverOnConst name Solver.Native.queryNative
+              | .rawNative => runProverOnConst name usedThmNames Solver.Native.queryNative
               | .leanSmt   => throwError "Lean-SMT is currently not supported"
-              | _          => runProverOnConst name (Auto.runAuto (.some name))
+              | _          => runProverOnConst name usedThmNames (Auto.runAuto (.some name))
         ))
     let problemTime := (← IO.monoMsNow) - problemStartTime
     let problemHb := (← IO.getNumHeartbeats) - problemStartHb
@@ -180,8 +178,11 @@ where
     return (name, res, time, hb)
 
 def runAutoOnNamesFile (cfg : EvalAutoConfig) (fname : String) : CoreM Unit := do
+  throwError "Not implemented"
+  /-
   let names ← NameArray.load fname
   runAutoOnConsts cfg names
+  -/
 
 structure EvalAutoAsyncConfig where
   /-- Timeout for Lean code (Lean-auto + native provers) -/
