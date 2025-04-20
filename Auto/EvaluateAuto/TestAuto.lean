@@ -146,8 +146,8 @@ def runAutoOnConsts (config : EvalAutoConfig) (names : Array Name) (usedThmNames
     if let .some fhandle := logFileHandle? then
       fhandle.putStrLn (toString (← MessageData.format m!"{result}\nElapsed time : {problemTime} ms, {problemHb} hb"))
   if let .some fhandle := resultFileHandle? then
-    fhandle.putStrLn s!"Total elapsed time: {(← IO.monoMsNow) - globalStartTime} ms"
-    fhandle.putStrLn s!"\nSummary:\n"
+    -- fhandle.putStrLn s!"Total elapsed time: {(← IO.monoMsNow) - globalStartTime} ms"
+    -- fhandle.putStrLn s!"\nSummary:\n"
     for ((name, result, time, hb), idx) in (names.zip results).zipWithIndex do
       fhandle.putStrLn s!"{idx} {result.concise} {time} {hb} {Name.uniqRepr name}"
 
