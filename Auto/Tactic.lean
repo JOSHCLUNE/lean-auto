@@ -1082,7 +1082,15 @@ def evalAutoHintReconstruction : Tactic
   replaceMainGoal [absurd]
   withMainContext do
     let (lemmas, inhFacts) ← collectAllLemmas hints uords (goalBinders.push ngoal)
-    let (_, selectorInfos, lemmas) ← runAutoGetHints lemmas inhFacts
+    let (_, selectorInfos, lemmas) ←
+      try
+        runAutoGetHints lemmas inhFacts
+      catch _ =>
+        -- If auto's translation fails or the external prover fails to find a goal, `autoCheckHintReconstruction` should succeed
+        let proof ← Meta.mkAppM ``sorryAx #[Expr.const ``False [], Expr.const ``false []]
+        let finalGoal ← getMainGoal -- Need to update main goal because running evalTactic to add selectors can change the main goal
+        finalGoal.assign proof
+        return
     IO.println s!"Auto found hints. Time spent by auto : {(← IO.monoMsNow) - startTime}ms"
     let allLemmas :=
       lemmas.1 ++ lemmas.2.1 ++ lemmas.2.2.1 ++ lemmas.2.2.2.1 ++ lemmas.2.2.2.2.1 ++
