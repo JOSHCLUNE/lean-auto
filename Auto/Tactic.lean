@@ -807,7 +807,6 @@ where
       throwError "runAutoGetHints :: Either auto.smt or auto.tptp must be enabled"
 
 syntax (name := autoGetHints) "autoGetHints" autoinstr hints (uord)* : tactic
-syntax (name := autoCheckHintReconstruction) "autoCheckHintReconstruction" autoinstr hints (uord)* : tactic
 
 /-- Given an expression `∀ x1 : t1, x2 : t2, ... xn : tn, b`, returns `[t1, t2, ..., tn]`. If the given expression is not
     a forall expression, then `getForallArgumentTypes` just returns the empty list -/
@@ -1066,79 +1065,6 @@ def evalAutoGetHints : Tactic
     | .useSorry =>
       let proof ← Meta.mkAppM ``sorryAx #[Expr.const ``False [], Expr.const ``false []]
       absurd.assign proof
-| _ => throwUnsupportedSyntax
-
-@[tactic autoCheckHintReconstruction]
-def evalAutoHintReconstruction : Tactic
-| `(autoCheckHintReconstruction | autoCheckHintReconstruction%$stxRef $instr $hints $[$uords]*) => withMainContext do
-  let startTime ← IO.monoMsNow
-  -- Suppose the goal is `∀ (x₁ x₂ ⋯ xₙ), G`
-  -- First, apply `intros` to put `x₁ x₂ ⋯ xₙ` into the local context,
-  --   now the goal is just `G`
-  let (goalBinders, newGoal) ← (← getMainGoal).intros
-  let [nngoal] ← newGoal.apply (.const ``Classical.byContradiction [])
-    | throwError "evalAuto :: Unexpected result after applying Classical.byContradiction"
-  let (ngoal, absurd) ← MVarId.intro1 nngoal
-  replaceMainGoal [absurd]
-  withMainContext do
-    let (lemmas, inhFacts) ← collectAllLemmas hints uords (goalBinders.push ngoal)
-    let (_, selectorInfos, lemmas) ←
-      try
-        runAutoGetHints lemmas inhFacts
-      catch _ =>
-        -- If auto's translation fails or the external prover fails to find a goal, `autoCheckHintReconstruction` should succeed
-        let proof ← Meta.mkAppM ``sorryAx #[Expr.const ``False [], Expr.const ``false []]
-        let finalGoal ← getMainGoal -- Need to update main goal because running evalTactic to add selectors can change the main goal
-        finalGoal.assign proof
-        return
-    IO.println s!"Auto found hints. Time spent by auto : {(← IO.monoMsNow) - startTime}ms"
-    let allLemmas :=
-      lemmas.1 ++ lemmas.2.1 ++ lemmas.2.2.1 ++ lemmas.2.2.2.1 ++ lemmas.2.2.2.2.1 ++
-      (lemmas.2.2.2.2.2.foldl (fun acc l => acc ++ l) [])
-    if allLemmas.length = 0 then
-      IO.println "SMT solver did not generate any theory lemmas"
-    else
-      let mut tacticsArr := #[]
-      for (selName, selCtor, argIdx, selType) in selectorInfos do
-        let selFactName := selName ++ "Fact"
-        let selector ← buildSelector selCtor argIdx
-        let selectorStx ← withOptions ppOptionsSetting $ PrettyPrinter.delab selector
-        let selectorFact ← buildSelectorFact selName selCtor selType argIdx
-        let selectorFactStx ← withOptions ppOptionsSetting $ PrettyPrinter.delab selectorFact
-        let existsIntroStx ← withOptions ppOptionsSetting $ PrettyPrinter.delab (mkConst ``Exists.intro)
-        tacticsArr := tacticsArr.push $
-          ← `(tactic|
-              have ⟨$(mkIdent (.str .anonymous selName)), $(mkIdent (.str .anonymous selFactName))⟩ : $selectorFactStx:term := by
-                apply $existsIntroStx:term $selectorStx:term
-                intros
-                rfl
-            )
-        evalTactic $ -- Eval to add selector and its corresponding fact to lctx
-          ← `(tactic|
-              have ⟨$(mkIdent (.str .anonymous selName)), $(mkIdent (.str .anonymous selFactName))⟩ : $selectorFactStx:term := by
-                apply $existsIntroStx:term $selectorStx:term
-                intros
-                rfl
-            )
-      let lemmasStx ← withMainContext do -- Use updated main context so that newly added selectors are accessible
-        let lctx ← getLCtx
-        let mut selectorFVars := #[]
-        for (selUserName, _, _, _) in selectorInfos do
-          match lctx.findFromUserName? (.str .anonymous selUserName) with
-          | some decl => selectorFVars := selectorFVars.push (.fvar decl.fvarId)
-          | none => throwError "evalAutoGetHints :: Error in trying to access selector definition for {selUserName}"
-        let allLemmas := allLemmas.map (fun lem => lem.instantiateRev selectorFVars)
-        trace[auto.tactic] "allLemmas: {allLemmas}"
-        allLemmas.mapM (fun lemExp => withOptions ppOptionsSetting $ PrettyPrinter.delab lemExp)
-      for lemmaStx in lemmasStx do
-        tacticsArr := tacticsArr.push $ ← `(tactic| have : $lemmaStx := by grind)
-        evalTactic $ ← `(tactic| have : $lemmaStx := by grind)
-      tacticsArr := tacticsArr.push $ ← `(tactic| sorry)
-      let tacticSeq ← `(Lean.Parser.Tactic.tacticSeq| $tacticsArr*)
-      withOptions ppOptionsSetting $ addTryThisTacticSeqSuggestion stxRef tacticSeq (← getRef)
-    let proof ← Meta.mkAppM ``sorryAx #[Expr.const ``False [], Expr.const ``false []]
-    let finalGoal ← getMainGoal -- Need to update main goal because running evalTactic to add selectors can change the main goal
-    finalGoal.assign proof
 | _ => throwUnsupportedSyntax
 
 /--
