@@ -357,7 +357,7 @@ def correctType (e : Expr) (parseTermConstraint : ParseTermConstraint) : MetaM E
     else return e
   | expectedType t => do
     if ← isDefEq eType t then return e
-    else if eType.isProp && (← isDefEq t (mkConst ``Bool)) then whnf $ ← mkAppOptM ``decide #[some e, none]
+    else if eType.isProp && (← isDefEq t (mkConst ``Bool)) then whnf $ ← mkAppOptM ``decide #[some e, ← mkAppM ``Classical.propDecidable #[e]]
     else if (← isDefEq eType (mkConst ``Bool)) && t.isProp then whnf $ ← mkAppM ``Eq #[e, mkConst ``true]
     else if (← isDefEq eType (mkConst ``Nat)) && (← isDefEq t (mkConst ``Int)) then return ← mkAppM ``Int.ofNat #[e]
     else if (← isDefEq eType (mkConst ``Int)) && (← isDefEq t (mkConst ``Nat)) then return ← mkAppM ``Int.natAbs #[e]
