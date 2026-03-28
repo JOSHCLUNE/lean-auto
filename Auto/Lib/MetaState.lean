@@ -8,13 +8,13 @@ namespace Auto.MetaState
 structure State extends Meta.State, Meta.Context
 
 structure SavedState where
-  core       : Core.State
+  coreState  : Core.State
   metaState  : State
 
 abbrev MetaStateM := StateRefT State CoreM
 
 @[always_inline]
-instance : Monad MetaStateM := let i := inferInstanceAs (Monad MetaStateM); { pure := i.pure, bind := i.bind }
+instance : Monad MetaStateM := inferInstance
 
 instance : MonadLCtx MetaStateM where
   getLCtx := return (← get).toContext.lctx
@@ -31,18 +31,28 @@ instance : AddMessageContext MetaStateM where
   addMessageContext := addMessageContextFull
 
 protected def saveState : MetaStateM SavedState :=
-  return { core := (← getThe Core.State), metaState := (← get) }
+  return { coreState := (← getThe Core.State), metaState := (← get) }
 
 def SavedState.restore (b : SavedState) : MetaStateM Unit := do
   -- **TODO: Is this safe?**
-  liftM (m := CoreM) <| modify fun s => { s with env := b.core.env, messages := b.core.messages, infoState := b.core.infoState }
+  liftM (m := CoreM) <| modify fun s => { s with env := b.coreState.env, messages := b.coreState.messages, infoState := b.coreState.infoState }
   modify fun s => { s with mctx := b.metaState.mctx, zetaDeltaFVarIds := b.metaState.zetaDeltaFVarIds, postponed := b.metaState.postponed }
 
 instance : MonadBacktrack SavedState MetaStateM where
   saveState      := MetaState.saveState
   restoreState s := s.restore
 
-#genMonadState MetaStateM
+def getToState : MetaStateM Meta.State := do
+  return (← get).toState
+
+def setToState (st : Meta.State) : MetaStateM Unit := do
+  modify fun s => { s with toState := st }
+
+def getToContext : MetaStateM Meta.Context := do
+  return (← get).toContext
+
+def setToContext (ctx : Meta.Context) : MetaStateM Unit := do
+  modify fun s => { s with toContext := ctx }
 
 def runMetaM (n : MetaM α) : MetaStateM α := do
   let s ← get

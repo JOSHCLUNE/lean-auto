@@ -64,7 +64,44 @@ def ExternM.run (m : ExternM α) (s : State) : MetaStateM (α × State) :=
 def ExternM.run' (m : ExternM α) (s : State) : MetaStateM α :=
   StateRefT'.run' m s
 
-#genMonadState ExternM
+def getTyVal : ExternM (Array (Expr × Level)) := do
+  return (← get).tyVal
+
+def getVarVal : ExternM (Array (Expr × LamSort)) := do
+  return (← get).varVal
+
+def getLamEVarTy : ExternM (Array LamSort) := do
+  return (← get).lamEVarTy
+
+def getAtomsToAbstract : ExternM (Array (FVarId × Expr)) := do
+  return (← get).atomsToAbstract
+
+def setAtomsToAbstract (atomsToAbstract : Array (FVarId × Expr)) : ExternM Unit := do
+  modify fun s => { s with atomsToAbstract := atomsToAbstract }
+
+def getEtomsToAbstract : ExternM (Array (FVarId × Nat)) := do
+  return (← get).etomsToAbstract
+
+def setEtomsToAbstract (etomsToAbstract : Array (FVarId × Nat)) : ExternM Unit := do
+  modify fun s => { s with etomsToAbstract := etomsToAbstract }
+
+def getTypeAtomFVars : ExternM (Std.HashMap Nat Expr) := do
+  return (← get).typeAtomFVars
+
+def setTypeAtomFVars (typeAtomFVars : Std.HashMap Nat Expr) : ExternM Unit := do
+  modify fun s => { s with typeAtomFVars := typeAtomFVars }
+
+def getTermAtomFVars : ExternM (Std.HashMap Nat Expr) := do
+  return (← get).termAtomFVars
+
+def setTermAtomFVars (termAtomFVars : Std.HashMap Nat Expr) : ExternM Unit := do
+  modify fun s => { s with termAtomFVars := termAtomFVars }
+
+def getEtomFVars : ExternM (Std.HashMap Nat Expr) := do
+  return (← get).etomFVars
+
+def setEtomFVars (etomFVars : Std.HashMap Nat Expr) : ExternM Unit := do
+  modify fun s => { s with etomFVars := etomFVars }
 
 def withTypeAtomsAsFVar (atoms : Array Nat) : ExternM Unit :=
   for atom in atoms do
@@ -230,7 +267,7 @@ def callNativeWithAtomAsFVar
 @[inherit_doc callNativeWithAtomAsFVar]
 def callMkMVarWithAtomAsFVar
   (nonemptiesWithDTr : Array (REntry × DTr)) (validsWithDTr : Array (REntry × DTr)) :
-  ExternM (MVarId × Expr × LamTerm × Nat × Array Nat) := MetaState.withTemporaryLCtx {} {} <| do
+  ExternM (MVarId × Expr × LamTerm × Array Expr × Array Nat) := MetaState.withTemporaryLCtx {} {} <| do
   let (ss, ts, lemmas, inhLemmas) ← withAll nonemptiesWithDTr validsWithDTr
   let getFid (lem : Lemma) : ExternM FVarId := do
     match lem.proof with
@@ -261,6 +298,6 @@ def callMkMVarWithAtomAsFVar
     let proof ← Meta.mkLambdaFVars (fvars.map Expr.fvar) (← instantiateMVars (.mvar mProofId))
     let proof ← Meta.instantiateLambda proof (atomsToAbstract.map Prod.snd)
     return (proof, goalId))
-  return (goalId, proof, proofLamTerm, atomsToAbstract.size, etomsToAbstract.map Prod.snd)
+  return (goalId, proof, proofLamTerm, atomsToAbstract.map Prod.snd, etomsToAbstract.map Prod.snd)
 
 end Auto.Lam2DAAF

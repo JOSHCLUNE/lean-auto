@@ -452,7 +452,7 @@ namespace Lam2D
     [
       (``String.append, mkApp4
         (.const ``HAppend.hAppend [.zero, .zero, .zero]) stringc stringc stringc
-        (mkApp2 (.const ``instHAppendOfAppend [.zero]) stringc (mkConst ``String.instAppend))),
+        (mkApp2 (.const ``instHAppendOfAppend [.zero]) stringc (mkConst ``instAppendString))),
       (``String.lt, mkApp2 (.const ``LT.lt [.zero]) stringc (mkConst ``String.instLT)),
     ]
 
@@ -491,7 +491,7 @@ namespace Lam2D
         (mkApp2 (.const ``instHOrOfOrOp [.zero]) (.app bitVecc (.bvar 0)) (.app (mkConst ``BitVec.instOrOp) (.bvar 0)))) .default),
       (``BitVec.xor             , .lam `n natc (mkApp4
         (.const ``HXor.hXor [.zero, .zero, .zero]) (.app bitVecc (.bvar 0)) (.app bitVecc (.bvar 0)) (.app bitVecc (.bvar 0))
-        (mkApp2 (.const ``instHXorOfXor [.zero]) (.app bitVecc (.bvar 0)) (.app (mkConst ``BitVec.instXor) (.bvar 0)))) .default),
+        (mkApp2 (.const ``instHXorOfXorOp [.zero]) (.app bitVecc (.bvar 0)) (.app (mkConst ``BitVec.instXorOp) (.bvar 0)))) .default),
       (``BitVec.not             , .lam `n natc (mkApp2
         (.const ``Complement.complement [.zero]) (.app bitVecc (.bvar 0))
         (.app (mkConst ``BitVec.instComplement) (.bvar 0))) .default),

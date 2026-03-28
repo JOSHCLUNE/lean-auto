@@ -11,7 +11,7 @@ theorem LamTerm.evarBounded_andLeft? : evarBounded andLeft? 0 := by
   intro t t' heq
   match t, heq with
   | .app _ (.app _ (.base .and) _) _, Eq.refl _ =>
-    dsimp [maxEVarSucc]; simp [Nat.max]
+    dsimp [maxEVarSucc]; simp only [Nat.max, Nat.max_zero_left]
     apply Nat.le_max_left
 
 theorem LamGenModify.andLeft? : LamGenModify lval LamTerm.andLeft? true := by
@@ -30,7 +30,7 @@ theorem LamTerm.evarBounded_andRight? : evarBounded andRight? 0 := by
   intro t t' heq
   match t, heq with
   | .app _ (.app _ (.base .and) _) _, Eq.refl _ =>
-    dsimp [maxEVarSucc]; simp [Nat.max]
+    dsimp [maxEVarSucc]; simp only [Nat.max, Nat.max_zero_left]
     apply Nat.le_max_right
 
 theorem LamGenModify.andRight? : LamGenModify lval LamTerm.andRight? true := by
@@ -67,13 +67,13 @@ theorem propne_equiv {a b : Prop} : (a ≠ b) ↔ (a ∨ b) ∧ (¬ a ∨ ¬ b) 
 theorem LamEquiv.not_true_equiv_false :
   LamEquiv lval lctx (.base .prop) (.mkNot (.base .trueE)) (.base .falseE) := by
   exists LamWF.mkNot (.ofBase .ofTrueE); exists LamWF.ofBase .ofFalseE; intro lctxTerm
-  dsimp [LamWF.interp, LamBaseTerm.LamWF.interp, notLift]
+  simp only [LamWF.interp, LamBaseTerm.LamWF.interp]
   apply GLift.down.inj; dsimp; apply eq_false; exact fun h => h .intro
 
 theorem LamEquiv.not_false_equiv_true :
   LamEquiv lval lctx (.base .prop) (.mkNot (.base .falseE)) (.base .trueE) := by
   exists LamWF.mkNot (.ofBase .ofFalseE); exists LamWF.ofBase .ofTrueE; intro lctxTerm
-  dsimp [LamWF.interp, LamBaseTerm.LamWF.interp, notLift]
+  simp only [LamWF.interp, LamBaseTerm.LamWF.interp]
   apply GLift.down.inj; dsimp; apply eq_true; exact id
 
 theorem LamEquiv.prop_ne_equiv_eq_not
@@ -267,7 +267,7 @@ theorem LamEquiv.eq_true_equiv?
     match wft with
     | .ofApp _ (.ofApp _ (.ofBase (.ofEq _)) Hlhs) (.ofBase .ofTrueE) =>
       exists Hlhs; intro lctxTerm
-      dsimp [LamWF.interp, LamBaseTerm.LamWF.interp, eqLiftFn]
+      simp only [LamWF.interp, LamBaseTerm.LamWF.interp, eqLiftFn]
       apply GLift.down.inj; dsimp; apply propext (Iff.intro ?mp ?mpr)
       case mp =>
         intro h; apply of_eq_true (_root_.congrArg _ h)
@@ -308,7 +308,7 @@ theorem LamEquiv.eq_false_equiv?
     match wft with
     | .ofApp _ (.ofApp _ (.ofBase (.ofEq _)) Hlhs) (.ofBase .ofFalseE) =>
       exists LamWF.mkNot Hlhs; intro lctxTerm
-      dsimp [LamWF.interp, LamBaseTerm.LamWF.interp, eqLiftFn]
+      simp only [LamWF.interp, LamBaseTerm.LamWF.interp, eqLiftFn]
       apply GLift.down.inj; dsimp; apply propext (Iff.intro ?mp ?mpr)
       case mp =>
         intro h h'; rw [h] at h'; exact h'
@@ -663,7 +663,7 @@ theorem LamTerm.maxEVarSucc_propeq?
 
 theorem propeq_equiv_eq' {a b : GLift Prop} : (a = b) ↔
   (a.down ∨ ¬ b.down) ∧ (¬ a.down ∨ b.down) := by
-  cases a; case up a => cases b; simp; rw [equiv_eq (a:=a)]; apply propeq_equiv
+  cases a; case up a => cases b; simp only [GLift.up.injEq, eq_iff_iff]; rw [equiv_eq (a:=a)]; apply propeq_equiv
 
 theorem LamEquiv.propeq?
   (wft : LamWF lval.toLamTyVal ⟨lctx, t, s⟩)
@@ -762,7 +762,7 @@ theorem LamTerm.maxEVarSucc_propne?
 
 theorem propne_equiv_eq' {a b : GLift Prop} : (a ≠ b) ↔
   (a.down ∨ b.down) ∧ (¬ a.down ∨ ¬ b.down) := by
-  cases a; case up a => cases b; simp; rw [equiv_eq (a:=a)]; apply propne_equiv
+  cases a; case up a => cases b; simp only [ne_eq, GLift.up.injEq, eq_iff_iff]; rw [equiv_eq (a:=a)]; apply propne_equiv
 
 theorem LamEquiv.propne?
   (wft : LamWF lval.toLamTyVal ⟨lctx, t, s⟩)

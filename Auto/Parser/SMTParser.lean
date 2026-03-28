@@ -36,7 +36,7 @@ def LexVal.toString : LexVal → String
     let nfrac := n % m
     let nfracs := s!"{nfrac}"
     let nfracs :=
-      String.mk ((List.range (pow - nfracs.length)).map (fun _ => '0')) ++
+      String.ofList ((List.range (pow - nfracs.length)).map (fun _ => '0')) ++
       nfracs
     s!"{nint}." ++ nfracs
 | .str s   => "\"" ++ String.intercalate "\"\"" (s.splitOn "\"") ++ "\""
@@ -75,14 +75,14 @@ def LexVal.ofString (s : String) (attr : String) : LexVal :=
     let bdigs := s.drop 2
     .num (bdigs.foldl (fun x c => x * 2 + c.toNat - '0'.toNat) 0)
   | "string" =>
-    let subs := ((s.drop 1).take (s.length - 2)).splitOn "\"\""
+    let subs := ((s.drop 1).take (s.length - 2)).toString.splitOn "\"\""
     .str (String.intercalate "\"" subs)
   | "simplesymbol" => .symb s
-  | "quotedsymbol" => .symb ((s.drop 1).take (s.length - 2))
-  | "keyword"      => .kw (s.drop 1)
+  | "quotedsymbol" => .symb ((s.drop 1).take (s.length - 2)).toString
+  | "keyword"      => .kw (s.drop 1).toString
   | "comment"      =>
-    let rn : Nat := if s.get (s.prev (s.prev s.endPos)) == '\r' then 1 else 0
-    .comment ((s.drop 1).take (s.length - 2 - rn))
+    let rn : Nat := if String.Pos.Raw.get s (String.Pos.Raw.prev s (String.Pos.Raw.prev s s.rawEndPos)) == '\r' then 1 else 0
+    .comment ((s.drop 1).take (s.length - 2 - rn)).toString
   | "reserved"     => .reserved s
   | "forall"       => .reserved "forall"
   | "exists"       => .reserved "exists"
@@ -123,11 +123,11 @@ instance : ToString PartialResult where
 inductive LexResult where
   -- SMTTerm: Result
   -- String.pos: The position of the next character
-  | complete   : Term → String.Pos → LexResult
+  | complete   : Term → String.Pos.Raw → LexResult
   -- Array (Array Sexp): Parser stack
   -- Nat: State of lexer
   -- String.pos: The position of the next character
-  | incomplete : PartialResult → String.Pos → LexResult
+  | incomplete : PartialResult → String.Pos.Raw → LexResult
   -- Malformed input
   | malformed  : LexResult
 deriving Inhabited, BEq, Hashable
@@ -146,25 +146,25 @@ local instance : Hashable Char := ⟨fun c => hash c.val⟩
      part of `l` before `p` will always be identified as `incomplete`
      by `ERE.ADFALexEagerL SMTSexp.lexiconADFA`, and never as `done`.
 -/
-def lexTerm [Monad m] [Lean.MonadError m] (s : String) (p : String.Pos)
+def lexTerm [Monad m] [Lean.MonadError m] (s : String) (p : String.Pos.Raw)
   (partialResult : PartialResult) : m LexResult := do
-  if p == s.endPos then
+  if p == s.rawEndPos then
     return .incomplete partialResult p
-  let nextLexicon (p : String.Pos) (lst : Nat) :=
-    Regex.ERE.ADFALexEagerL SMT.lexiconADFA ⟨s, p, s.endPos⟩
+  let nextLexicon (p : String.Pos.Raw) (lst : Nat) :=
+    Regex.ERE.ADFALexEagerL SMT.lexiconADFA ⟨s, p, s.rawEndPos⟩
       {strict := true, initS := lst, prependBeginS := false, appendEndS := false}
   let mut lst := partialResult.lst
   let mut lexpart := partialResult.lexpart
   let mut pstk := partialResult.pstk
   let mut p := p
-  let endPos := s.endPos
+  let endPos := s.rawEndPos
   while true do
     -- If we're not resuming from an incomplete
     --   match of lexicon, skip white space
     if lexpart == "" then
       -- Skip whitespace characters
       while p != endPos do
-        let c := s.get! p
+        let c := String.Pos.Raw.get! s p
         if SMT.whitespace.contains c then
           p := p + c
         else
@@ -206,7 +206,7 @@ def lexTerm [Monad m] [Lean.MonadError m] (s : String) (p : String.Pos)
       | .comment s => pstk := pstk.modify (pstk.size - 1) (fun arr => arr.push (.atom (.comment s)))
       | l       =>
         -- Ordinary lexicons must be separated by whitespace or parentheses
-        match s.get? p with
+        match String.Pos.Raw.get? s p with
         | some c =>
           if !SMT.whitespace.contains c ∧ c != ')' ∧ c != '(' then
             return .malformed
@@ -219,7 +219,7 @@ def lexTerm [Monad m] [Lean.MonadError m] (s : String) (p : String.Pos)
     | ⟨.malformed, _, _, _⟩  => return .malformed
   throwError s!"parseSexp :: Unexpected error when parsing string {s}"
 
-partial def lexAllTerms [Monad m] [Lean.MonadError m] (s : String) (p : String.Pos) (acc : List Term) : m (List Term) := do
+partial def lexAllTerms [Monad m] [Lean.MonadError m] (s : String) (p : String.Pos.Raw) (acc : List Term) : m (List Term) := do
   match ← lexTerm s p {} with
   | .complete e p =>
     let restTerms ← lexAllTerms s p acc

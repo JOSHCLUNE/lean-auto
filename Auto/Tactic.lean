@@ -300,15 +300,15 @@ def queryTPTP (exportFacts : Array REntry) : LamReif.ReifM (Option Expr × Optio
     The returned substring will use the same underlying string as `s`.
 
     Note: Code taken from Std -/
-def commonPrefix (s t : Substring) : Substring :=
+def commonPrefix (s t : Substring.Raw) : Substring.Raw :=
   { s with stopPos := loop s.startPos t.startPos }
 where
   /-- Returns the ending position of the common prefix, working up from `spos, tpos`. -/
   loop spos tpos :=
     if h : spos < s.stopPos ∧ tpos < t.stopPos then
-      if s.str.get spos == t.str.get tpos then
-        have := Nat.sub_lt_sub_left h.1 (s.str.lt_next spos)
-        loop (s.str.next spos) (t.str.next tpos)
+      if String.Pos.Raw.get s.str spos == String.Pos.Raw.get t.str tpos then
+        have := Nat.sub_lt_sub_left h.1 (String.Pos.Raw.byteIdx_lt_byteIdx_next s.str spos)
+        loop (String.Pos.Raw.next s.str spos) (String.Pos.Raw.next t.str tpos)
       else
         spos
     else
@@ -316,9 +316,9 @@ where
   termination_by s.stopPos.byteIdx - spos.byteIdx
 
 /-- If `pre` is a prefix of `s`, i.e. `s = pre ++ t`, returns the remainder `t`. -/
-def dropPrefix? (s : Substring) (pre : Substring) : Option Substring :=
+def dropPrefix? (s : Substring.Raw) (pre : Substring.Raw) : Option Substring.Raw :=
   let t := commonPrefix s pre
-  if t.bsize = pre.bsize then
+  if Substring.Raw.bsize t = Substring.Raw.bsize pre then
     some { s with startPos := t.stopPos }
   else
     none
@@ -347,7 +347,7 @@ def addTryThisTacticSeqSuggestion (ref : Syntax) (suggestion : TSyntax ``Lean.Pa
 where
   dedent (s : String) : String :=
     s.splitOn "\n"
-    |>.map (λ line => dropPrefix? line.toSubstring "  ".toSubstring |>.map (·.toString) |>.getD line)
+    |>.map (λ line => dropPrefix? line.toRawSubstring "  ".toRawSubstring |>.map (·.toString) |>.getD line)
     |> String.intercalate "\n"
 
 open Embedding.Lam in
@@ -604,7 +604,8 @@ def callNative_checker
 open LamReif Embedding.Lam in
 def callMkMVar_checker
   (nonempties : Array REntry) (valids : Array REntry) :
-  ReifM (Array (REntry × DTr) × Array (REntry × DTr) × MVarId × Expr × LamTerm × Nat × Array Nat) := do
+  ReifM (Array (REntry × DTr) × Array (REntry × DTr) × MVarId ×
+         Expr × LamTerm × Array Expr × Array Nat) := do
   let tyVal ← LamReif.getTyVal
   let varVal ← LamReif.getVarVal
   let lamEVarTy ← LamReif.getLamEVarTy
@@ -1081,6 +1082,8 @@ def evalAutoGetHints : Tactic
   Return Value
   · `e : Expr`    : An term of type `False`, which contains one metavariable yet to be assigned
   · `id : MVarId` : The ID of the metavariable in `e` yet to be assigned
+  · `atomVals : Array (FVarId × Expr)`
+                    The values of the type lam-atoms and term lam-atoms
   · `derivs : Array (FVarId × DTr)`
                     The `DTr`s associated with (monomorphized) lemmas and inhabitation lemmas
                     in the context of `id`. Using this information you can obtain the
@@ -1088,21 +1091,21 @@ def evalAutoGetHints : Tactic
 -/
 def runMono
   (declName? : Option Name) (lemmas : Array Lemma) (inhFacts : Array Lemma) :
-  MetaM (Expr × MVarId × Array (FVarId × DTr)) :=
+  MetaM (Expr × MVarId × Array (FVarId × Expr) × Array (FVarId × DTr)) :=
   Meta.withDefault do
     traceLemmas `auto.runAuto.printLemmas s!"All lemmas received by {decl_name%}:" lemmas
     let lemmas ← rewriteIteCondDecide lemmas
-    let ((proof, goalId, derivs), _) ← Monomorphization.monomorphize lemmas inhFacts (@id (Reif.ReifM _) do
+    let ((proof, goalId, atomVals, derivs), _) ← Monomorphization.monomorphize lemmas inhFacts (@id (Reif.ReifM _) do
       let s ← get
       let u ← computeMaxLevel s.facts
       (reifMAction s.facts s.inhTys s.inds).run' {u := u})
     trace[auto.tactic] "Auto found proof of {← Meta.inferType proof}"
     trace[auto.tactic.printProof] "{proof}"
-    return (proof, goalId, derivs)
+    return (proof, goalId, atomVals, derivs)
 where
   reifMAction
     (uvalids : Array UMonoFact) (uinhs : Array UMonoFact)
-    (minds : Array (Array SimpleIndVal)) : LamReif.ReifM (Expr × MVarId × Array (FVarId × DTr)) := do
+    (minds : Array (Array SimpleIndVal)) : LamReif.ReifM (Expr × MVarId × Array (FVarId × Expr) × Array (FVarId × DTr)) := do
     let exportFacts ← LamReif.reifFacts uvalids
     let mut exportFacts := exportFacts.map (Embedding.Lam.REntry.valid [])
     let _ ← LamReif.reifInhabitations uinhs
@@ -1114,7 +1117,7 @@ where
     let (exportFacts', _) ← LamReif.preprocess exportFacts exportInds
     exportFacts := exportFacts'.append (← LamReif.auxLemmas exportFacts)
     -- **Query the dummy prover which creates a metavariable**
-    let (nonemptyWithDTrs, validWithDTrs, goalId, proof, proofLamTerm, natoms, etoms) ←
+    let (nonemptyWithDTrs, validWithDTrs, goalId, proof, proofLamTerm, atomVals, etoms) ←
       callMkMVar_checker exportInhs exportFacts
     LamReif.newAssertion proof (.leaf "by_native::queryNative") proofLamTerm
     let etomInstantiated ← LamReif.validOfInstantiateForall (.valid [] proofLamTerm) (etoms.map .etom)
@@ -1124,10 +1127,10 @@ where
     Reif.setDeclName? declName?
     let checker ← LamReif.buildCheckerExprFor contra
     let contra ← Meta.mkAppM ``Embedding.Lam.LamThmValid.getFalse #[checker]
-    let (_, goalId) ← goalId.introN (natoms + etoms.size)
+    let (goalFVars, goalId) ← goalId.introN (atomVals.size + etoms.size)
     let (goalCtx, goalId) ← goalId.introN (exportInhs.size + exportFacts.size)
     let goalCtxWithDeriv := goalCtx.zip ((nonemptyWithDTrs ++ validWithDTrs).map Prod.snd)
-    return (contra, goalId, goalCtxWithDeriv)
+    return (contra, goalId, goalFVars.zip atomVals, goalCtxWithDeriv)
 
 @[tactic mono]
 def evalMono : Tactic

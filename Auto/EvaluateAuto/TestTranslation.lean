@@ -55,7 +55,7 @@ def monomorphizedProblemOfAutoLemma (lem : Auto.Lemma) : CoreM (Option (Array Em
         let u ← computeMaxLevel s.facts
         (LamReif.reifFacts s.facts).run' {u := u})
       return monomorphized
-  let metaContext : Meta.Context := { config := Elab.Term.setElabConfig {} }
+  let metaContext : Meta.Context := { keyedConfig := (Elab.Term.setElabConfig {}).toConfigWithKey }
   Lean.Core.tryCatchRuntimeEx
     (do let monomorphized ← Meta.MetaM.run' monoFn (ctx := metaContext); return .some monomorphized)
     (fun _ => return .none)
@@ -99,12 +99,12 @@ def readEvalMonoSizeResult (resultFile : String) : CoreM (Array (Name × Nat × 
   (Array.mk lines).mapM analyzeLine
 where analyzeLine (line : String) : CoreM (Name × Nat × Option Nat) := do
   let line := (line.dropWhile (fun c => c != ' ')).drop 1
-  let rawSizeStr := line.takeWhile (fun c => c != ' ')
+  let rawSizeStr := (line.takeWhile (fun c => c != ' ')).toString
   let line := (line.dropWhile (fun c => c != ' ')).drop 1
   let .some rawSize := rawSizeStr.toNat?
     | throwError "{decl_name%} :: {rawSizeStr} is not a string representation of a Nat"
   let monoSizeStr := line.takeWhile (fun c => c != ' ')
-  let line := (line.dropWhile (fun c => c != ' ')).drop 1
+  let line := ((line.dropWhile (fun c => c != ' ')).drop 1).toString
   let mut monoSize? : Option Nat := .none
   if monoSizeStr != "N" then
     let .some monoSize := monoSizeStr.toNat?

@@ -71,7 +71,7 @@ private def runProverOnAutoLemma
     let goal := mkApp2 (.const ``Classical.byContradiction []) body negGoalImpFalse
     Meta.mkLambdaFVars bs goal
   -- Align with tactic elaboration (see `Lean.Elab.Term.TermElabM.run`)
-  let metaContext : Meta.Context := { config := Elab.Term.setElabConfig {} }
+  let metaContext : Meta.Context := { keyedConfig := (Elab.Term.setElabConfig {}).toConfigWithKey }
   let result : Expr ⊕ Exception ←
     Lean.Core.tryCatchRuntimeEx
       (do let proof ← Meta.MetaM.run' proverFn (ctx := metaContext); return .inl proof)
@@ -164,18 +164,18 @@ def readRunAutoOnConstsResult (resultFile : String) : CoreM (Array (Name × Resu
 where
   analyzeLine (fileName line : String) : CoreM (Name × Result × Nat × Nat) := do
     let line := (line.dropWhile (fun c => c != ' ')).drop 1
-    let s := line.takeWhile (fun c => c != ' ')
+    let s := (line.takeWhile (fun c => c != ' ')).toString
     let .some res := Result.ofConcise? s
       | throwError s!"{decl_name%} :: In file {fileName}, {s} is not a concise representation of a `Result`"
-    let line := (line.dropWhile (fun c => c != ' ')).drop 1
-    let s := line.takeWhile (fun c => c != ' ')
+    let line := ((line.dropWhile (fun c => c != ' ')).drop 1).toString
+    let s := (line.takeWhile (fun c => c != ' ')).toString
     let .some time := String.toNat? s
       | throwError s!"{decl_name%} :: In file {fileName}, {s} is not a string representation of a Nat"
-    let line := (line.dropWhile (fun c => c != ' ')).drop 1
-    let s := line.takeWhile (fun c => c != ' ')
+    let line := ((line.dropWhile (fun c => c != ' ')).drop 1).toString
+    let s := (line.takeWhile (fun c => c != ' ')).toString
     let .some hb := String.toNat? s
       | throwError s!"{decl_name%} :: In file {fileName}, {s} is not a string representation of a Nat"
-    let line := (line.dropWhile (fun c => c != ' ')).drop 1
+    let line := ((line.dropWhile (fun c => c != ' ')).drop 1).toString
     let name := Name.parseUniqRepr line
     return (name, res, time, hb)
 
@@ -233,7 +233,7 @@ def leanFileLinesCallingRunAutoOnConsts
     "def Auto.duperRaw (lemmas : Array Lemma) (inhs : Array Lemma) : MetaM Expr := do",
     "  let lemmas : Array (Expr × Expr × Array Name × Bool) ← lemmas.mapM",
     "    (fun ⟨⟨proof, ty, _⟩, _⟩ => do return (ty, ← Meta.mkAppM ``eq_true #[proof], #[], true))",
-    "  Duper.runDuper lemmas.toList 0",
+    "  Duper.runDuper lemmas.toList [] 0",
     "",
     "attribute [rebind Auto.Native.solverFunc] Auto.duperRaw",
     "",
@@ -332,7 +332,7 @@ def readEATAResult (config : EvalAutoAsyncConfig) :
   let allFiles := (← System.FilePath.readDir resultFolder).map IO.FS.DirEntry.path
   let mut ret := #[]
   for file in allFiles do
-    if !(← System.FilePath.isDir file) && file.toString.takeRight 7 == ".result" then
+    if !(← System.FilePath.isDir file) && file.toString.takeEnd 7 == ".result" then
       ret := ret.append (← readRunAutoOnConstsResult file.toString)
   return ret
 

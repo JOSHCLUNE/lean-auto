@@ -18,6 +18,8 @@ set_option linter.unusedVariables false
 
 namespace Auto
 
+open ToExprExtra
+
 namespace Bin
 
 private theorem wfAux (n n' : Nat) : n = n' + 2 → n / 2 < n := by
@@ -313,7 +315,7 @@ theorem insert'.correct₁ (bt : BinTree β) (n : Nat) (x : β) : n ≠ 0 → ge
   case ind =>
     intros n IH bt _
     have hne' : (n + 2) / 2 ≠ 0 := by
-      rw [Nat.add_div_right _ (.step .refl)]; intro h; cases h
+      rw [Nat.add_div_right _ (Nat.lt_succ_of_lt .refl)]; intro h; cases h
     let IH' := fun bt => IH bt hne'
     rw [get?'_succSucc, insert'.succSucc, left!.eq_def, right!.eq_def]
     cases (n + 2) % 2 <;> cases bt <;> dsimp <;> rw [IH']
@@ -347,7 +349,7 @@ theorem insert'.correct₂ (bt : BinTree β) (n₁ n₂ : Nat) (x : β) : n₁ �
         rw [heq, h]
       have hmod : ∀ {n n'}, (n % 2) = .succ n' → n % 2 = 1 := by
         intros n n' H;
-        have hle : (n % 2) < 2 := Nat.mod_lt _ (.step .refl)
+        have hle : (n % 2) < 2 := Nat.mod_lt _ (Nat.lt_succ_of_lt .refl)
         revert H hle; cases (n % 2)
         case zero => intro contra; cases contra
         case succ a =>

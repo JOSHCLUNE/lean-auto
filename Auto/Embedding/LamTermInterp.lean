@@ -70,7 +70,7 @@ theorem LamTerm.interp_equiv
     let .ofLam bodyTy H := lwf; apply eq_sigma_of_heq
     case h₁ => rw [← IH _ H]
     case h₂ =>
-      dsimp [LamWF.interp, interp];
+      simp only [LamWF.interp];
       apply HEq.funext; intros lctxTerm
       apply HEq.funext; intros x
       rw [← IH _ H]
@@ -84,11 +84,11 @@ theorem LamTerm.interp_equiv
     | ⟨fnTy, fnInterp⟩ =>
       match LamTerm.interp lval lctxTy arg with
       | ⟨argTy, argInterp⟩ =>
-        dsimp; intros IHFn' IHArg'
+        simp only; intros IHFn' IHArg'
         let ⟨fnTyEq, fnInterpEq⟩ := IHFn'
         let ⟨argTyEq, argInterpEq⟩ := IHArg'
         cases fnTyEq; cases argTyEq; cases fnInterpEq; cases argInterpEq
-        dsimp; rw [LamSort.beq_refl]
+        simp only; rw [LamSort.beq_refl]; rfl
 
 theorem LamThmValid.getDefault (H : LamThmValid lval [] t) :
   GLift.down (LamTerm.interpAsProp lval dfLCtxTy (dfLCtxTerm lval.tyVal) t) := by
@@ -263,7 +263,23 @@ structure State where
 
 abbrev InterpM := StateRefT State MetaState.MetaStateM
 
-#genMonadState InterpM
+def getSortFVars : InterpM (Array FVarId) := do
+  return (← get).sortFVars
+
+def setSortFVars (sortFVars : Array FVarId) : InterpM Unit := do
+  modify fun s => { s with sortFVars := sortFVars }
+
+def getSortMap : InterpM (Std.HashMap LamSort FVarId) := do
+  return (← get).sortMap
+
+def setSortMap (sortMap : Std.HashMap LamSort FVarId) : InterpM Unit := do
+  modify fun s => { s with sortMap := sortMap }
+
+def getLctxTyRev : InterpM (Array LamSort) := do
+  return (← get).lctxTyRev
+
+def setLctxTyRev (lctxTyRev : Array LamSort) : InterpM Unit := do
+  modify fun s => { s with lctxTyRev := lctxTyRev }
 
 def getLCtxTy! (idx : Nat) : InterpM LamSort := do
   let lctxTyRev ← getLctxTyRev

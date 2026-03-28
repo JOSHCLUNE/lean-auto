@@ -62,7 +62,7 @@ instance : ToString LamAtomic where
   toString := LamAtomic.toString
 
 instance : Ord LamAtomic where
-  compare := fun x y => instOrdString.compare s!"{x}" s!"{y}"
+  compare := fun x y => compareOfLessAndEq s!"{x}" s!"{y}"
 
 /-- selectorInfo contains:
     - The name of the selector
@@ -114,7 +114,7 @@ def SMTNamingInfo.exprToSuggestion (e : Expr) : MetaM String := do
     return toString (← PrettyPrinter.formatTerm ppSyntax)
 
 def SMTNamingInfo.suggestNameForSort (sni : SMTNamingInfo) (s : LamSort) := do
-  let suggestion := ((← go s).take 1).toLower
+  let suggestion := ((← go s).take 1).toString.toLower
   trace[auto.lamFOL2SMT.nameSuggestion] "`{suggestion}` for LamSort `{s}`"
   return suggestion
 where

@@ -10,6 +10,8 @@ open Lean
 
 namespace Auto.Embedding.Lam
 
+open ToExprExtra
+
 /-- An entry of RTable -/
 inductive REntry where
   -- Well-formed formulas, with types
@@ -157,7 +159,7 @@ section CVal
     ∀ (n : Nat), ILLift.{u} ((lamILTy n).interp tyVal) :=
     fun n => ILLift.default ((lamILTy n).interp tyVal)
 
-  def CVal.toLamTyVal (cv : CVal.{u} levt) : LamTyVal :=
+  noncomputable def CVal.toLamTyVal (cv : CVal.{u} levt) : LamTyVal :=
     ⟨fun n => ((cv.var.get? n).getD ⟨.base .prop, GLift.up False⟩).fst,
      fun n => ((cv.il.get? n).getD ⟨.base .prop, ILLift.default _⟩).fst,
      fun n => (levt.get? n).getD (.base .prop)⟩
@@ -171,15 +173,15 @@ section CVal
   def CPVal.toLamVarTy (cpv : CPVal.{u}) : Nat → LamSort :=
     fun n => ((cpv.var.get? n).getD ⟨.base .prop, GLift.up False⟩).fst
 
-  def CPVal.toLamILTy (cpv : CPVal.{u}) : Nat → LamSort :=
+  noncomputable def CPVal.toLamILTy (cpv : CPVal.{u}) : Nat → LamSort :=
     fun n => ((cpv.il.get? n).getD ⟨.base .prop, ILLift.default _⟩).fst
 
-  def CPVal.toLamTyValWithLamEVarTy (cpv : CPVal.{u}) (levt : Nat → LamSort) : LamTyVal :=
+  noncomputable def CPVal.toLamTyValWithLamEVarTy (cpv : CPVal.{u}) (levt : Nat → LamSort) : LamTyVal :=
     ⟨fun n => ((cpv.var.get? n).getD ⟨.base .prop, GLift.up False⟩).fst,
      fun n => ((cpv.il.get? n).getD ⟨.base .prop, ILLift.default _⟩).fst,
      levt⟩
 
-  def CPVal.toLamTyValEraseEtom (cpv : CPVal.{u}) : LamTyVal :=
+  noncomputable def CPVal.toLamTyValEraseEtom (cpv : CPVal.{u}) : LamTyVal :=
     ⟨fun n => ((cpv.var.get? n).getD ⟨.base .prop, GLift.up False⟩).fst,
      fun n => ((cpv.il.get? n).getD ⟨.base .prop, ILLift.default _⟩).fst,
      fun _ => .base .prop⟩
@@ -420,7 +422,7 @@ abbrev importTablePSigmaβ (cpv : CPVal.{u}) (ie : ImportEntry) :=
 abbrev importTablePSigmaMk (cpv : CPVal.{u}) :=
   @PSigma.mk ImportEntry (importTablePSigmaβ cpv)
 
-def ImportTable.importFacts (it : ImportTable cpv) : BinTree REntry :=
+noncomputable def ImportTable.importFacts (it : ImportTable cpv) : BinTree REntry :=
   it.mapOpt (fun ⟨ie, _⟩ =>
     match ie with
     | .valid p =>
@@ -1662,7 +1664,7 @@ theorem EtomStep.eval_correct
           rw [Nat.beq_eq_false_of_ne (Nat.ne_of_lt hlt)]
         case right =>
           rw [LamTerm.maxEVarSucc_mkEq]; dsimp [LamTerm.maxEVarSucc]
-          rw [Nat.max_le]; apply And.intro (Nat.le_refl _) (Nat.le_step h₂')
+          rw [Nat.max_le]; apply And.intro (Nat.le_refl _) (Nat.le_succ_of_le h₂')
     | false => exact True.intro
   | .none => exact True.intro
 
@@ -2343,7 +2345,7 @@ theorem ChkSteps.run_correct
   dsimp [ChkSteps.run]; apply BinTree.foldl_inv (fun (r : RTable) => ∃ eV', RTable.inv r ⟨cpv, eV'⟩) inv
   intro r' (c, n) inv'; exact ChkStep.run_correct r' cpv inv' c n
 
-def ChkSteps.runFromBeginning (cpv : CPVal.{u}) (it : ImportTable cpv) (cs : ChkSteps) :=
+noncomputable def ChkSteps.runFromBeginning (cpv : CPVal.{u}) (it : ImportTable cpv) (cs : ChkSteps) :=
   ChkSteps.run cpv.toLamVarTy cpv.toLamILTy ⟨it.importFacts, 0, .leaf⟩ cs
 
 /--
